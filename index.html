@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+      }
+
+      body * {
+        font-size: small;
+      }
+
+      form {
+        display: flex;
+        flex-direction: column;
+        /* gap: 1rem; */
+        width: 300px;
+        margin: 0 auto;
+      }
+
+      form > div {
+        position: relative;
+        display: grid;
+        grid-template-areas: "stack";
+        flex-direction: column;
+        justify-content: stretch;
+      }
+
+      form > div > * {
+        grid-area: stack;
+      }
+
+      form > div > input[name="code"] {
+        padding-left: 1rem;
+      }
+
+      span:has(+ input[name="start"]) {
+        opacity: 0.5;
+      }
+
+      form span {
+        font-size: small;
+        pointer-events: none;
+        z-index: 1;
+        align-self: center;
+        padding-left: 0.5rem;
+      }
+
+      label {
+        font-size: small;
+        margin-bottom: 0.125em;
+        margin-top: 1em;
+      }
+
+      input {
+        padding: 0.5rem;
+        border-radius: 0.25rem;
+        border: 1px solid #ccc;
+      }
+
+      input[type="submit"] {
+        margin-top: 0.5em;
+        background-color: #007bff;
+        color: white;
+        cursor: pointer;
+      }
+
+      input[type="submit"]:hover {
+        background-color: #0056b3;
+      }
+
+      a {
+        display: block;
+        margin-top: 1rem;
+        text-align: center;
+        color: #007bff;
+        text-decoration: none;
+      }
+
+      .download-button-round {
+        display: block;
+        padding: 0.5rem 1rem;
+        font-size: x-large;
+        border-radius: 0.25rem;
+        background-color: hsl(118, 80%, 50%);
+        margin: 6ch 0;
+        color: white;
+        cursor: pointer;
+        text-decoration: none;
+        /* a nice shadow */
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        transition: background-color 0.3s, box-shadow 0.3s, transform 0.3s;
+      }
+
+      .download-button-round:hover {
+        background-color: hsl(118, 80%, 40%);
+        transform: translate(0, -5px);
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+      }
+    </style>
+  </head>
+  <body>
+    <form onsubmit="generate(event)">
+      <label for="name">Name</label>
+      <input
+        type="text"
+        id="name"
+        name="name"
+        placeholder="Name"
+        value="filter"
+      />
+      <label for="code">Country Code</label>
+      <div>
+        <span>+</span>
+        <input
+          type="text"
+          oninput="numberInputCollapse(this); prependCode()"
+          step="1"
+          id="code"
+          name="code"
+          placeholder="Country Code"
+          pattern="\d*"
+          value="61"
+        />
+      </div>
+
+      <label for="start">Phone Number Start</label>
+      <div>
+        <span></span>
+        <input
+          type="text"
+          oninput="correctNumberSpacing(event)"
+          onkeydown="correctCursor(event)"
+          onclick="correctCursor(event)"
+          step="1"
+          id="start"
+          name="start"
+          placeholder="Phone Number Start"
+          value="470763450"
+        />
+      </div>
+      <label for="count">Count</label>
+      <input
+        type="text"
+        id="count"
+        name="count"
+        placeholder="Count"
+        pattern="\d*"
+        step="1"
+        oninput="numberInputCollapse(this)"
+        value="200"
+      />
+      <input type="submit" value="GENERATE" />
+    </form>
+    <script>
+      const VCARD_START = `BEGIN:VCARD\r\nVERSION:3.0\r\n`
+      const VCARD_END = `END:VCARD`
+      const MAX_PHONE_LENGTH = 9
+
+      let selectStart
+      let selectEnd
+
+      let blobUrl
+
+      prependCode()
+      correctNumberSpacing(null)
+
+      function generate(e) {
+        e.preventDefault()
+        document.querySelector("a")?.remove()
+        URL.revokeObjectURL(blobUrl)
+
+        const formData = new FormData(e.target)
+        const name = formData.get("name")
+        const code = formData.get("code")
+        const start = formData.get("start")
+        const count = +formData.get("count")
+
+        const startNumber = +start.replace(/[^0-9]/g, "")
+
+        let vCardContent = VCARD_START + `FN:${name}\r\n`
+
+        for (let i = 0; i < count; i++) {
+          const phoneNumber = startNumber + i
+          vCardContent += `TEL;TYPE=cell:+${code}${phoneNumber}\r\n`
+        }
+
+        vCardContent += VCARD_END
+
+        const blob = createTextBlob(vCardContent)
+        blobUrl = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = blobUrl
+        a.download = `${name}.vcf`
+        a.innerText = "Download vCard"
+        a.className = "download-button-round"
+        document.body.appendChild(a)
+      }
+
+      //helpers
+      function createTextBlob(utf8String) {
+        const buffer = new TextEncoder().encode(utf8String)
+        return new Blob([buffer], { type: "text/vcard;charset=utf-8" })
+      }
+
+      function generalCleanup(str) {
+        return str
+          .replace(/\s+$/, "")
+          .replace(/^\s+/, "")
+          .replace(/\s\s+/g, " ")
+      }
+
+      function captureCursor(inputElement) {
+        if (selectStart || selectEnd) {
+          console.warn(
+            `Cursor already captured -- start: ${selectStart}, end: ${selectEnd}`
+          )
+          return false
+        }
+        ;[selectStart, selectEnd] = [
+          inputElement.selectionStart,
+          inputElement.selectionEnd,
+        ]
+        return true
+      }
+
+      function restoreCursor(inputElement, offset) {
+        if (selectStart === null || selectEnd === null) {
+          console.log("-- no cursor to restore")
+          return
+        }
+        inputElement.setSelectionRange(selectStart, selectEnd)
+        ;[selectStart, selectEnd] = [null, null]
+      }
+
+      function numberInputCollapse(target) {
+        const isCursorCaptured = captureCursor(target)
+        const collapsedValue = target.value
+          .replace(/[^0-9]/g, "")
+          .replace(/^0+/, "")
+        target.value = collapsedValue
+        if (isCursorCaptured) {
+          restoreCursor(target)
+        }
+        return collapsedValue
+      }
+
+      function prependCode() {
+        const codeInput = document.querySelector("input[name='code']")
+        const phoneInput = document.querySelector("input[name='start']")
+        const phantomSpan = document.querySelector(
+          "span:has(+input[name='start'])"
+        )
+        const condeInputLength = codeInput.value.length
+        const phoneContent = phoneInput.value
+
+        phoneInput.style.paddingLeft = `${
+          0.5 + (condeInputLength + 1) * 0.5
+        }rem`
+        phantomSpan.innerText = `+${codeInput.value}`
+      }
+
+      function correctNumberSpacing(e) {
+        if (e !== null) {
+          captureCursor(e.target)
+        }
+
+        const codeInput = document.querySelector("input[name='code']")
+        const phoneInput = document.querySelector("input[name='start']")
+        const phantomSpan = document.querySelector(
+          "span:has(+input[name='start'])"
+        )
+
+        const initialValue = phoneInput.value
+        const collapsedValue = numberInputCollapse(phoneInput)
+        if (collapsedValue.length > MAX_PHONE_LENGTH) {
+          const cursorPosition = selectStart - 1
+          const behindCursor = initialValue
+            .slice(0, cursorPosition)
+            .replace(/\s/g, "-")
+          const offset = [...behindCursor].filter((char) => char === "-").length
+          const translatedPosition = cursorPosition - offset
+          const upToCursor = collapsedValue.slice(0, translatedPosition + 1)
+          const afterNext = collapsedValue.slice(translatedPosition + 2)
+          const newCollapsedValue = upToCursor + afterNext
+          phoneInput.value = newCollapsedValue
+        }
+
+        const phoneContent = phoneInput.value
+        const numberArray = [...phoneContent]
+        let formattedNumber = phoneContent
+
+        if (formattedNumber.match(/[^0-9]/)) {
+          throw new Error("Phone number must be a number: " + formattedNumber)
+        }
+
+        if (numberArray.length === 0) {
+          phoneInput.value = ""
+          return
+        }
+
+        if (numberArray?.[0] === "4") {
+          formattedNumber = [
+            numberArray.slice(0, 3).join(""),
+            numberArray.slice(3, 6).join(""),
+            numberArray.slice(6, 9).join(""),
+          ].join(" ")
+        } else {
+          formattedNumber = [
+            numberArray.slice(0, 1).join(""),
+            numberArray.slice(1, 5).join(""),
+            numberArray.slice(5, 9).join(""),
+          ].join(" ")
+        }
+        phoneInput.value = generalCleanup(formattedNumber)
+          .replace(/\s+$/, "")
+          .replace(/\s\s+/g, " ")
+          .replace(/^\s+/g, "")
+
+        restoreCursor(phoneInput)
+      }
+
+      function correctCursor(e) {
+        const singleNumberRegex = /^\d$/
+        const acceptedKeys = ["ArrowRight", "ArrowLeft", "Backspace", "Delete"]
+        const key = e.key
+        const isNumberKey = singleNumberRegex.test(key)
+        const isAcceptedKey = acceptedKeys.includes(key)
+        const isKeyEvent = !!e.keyCode
+        if (isKeyEvent && !(isNumberKey || isAcceptedKey)) {
+          e.preventDefault()
+          return
+        }
+
+        let didDelete = false
+        if (key === "Delete") {
+          const cursorPosition = e.target.selectionStart
+          const followingChar = e.target.value.at(cursorPosition)
+          if (followingChar === " ") {
+            let didDelete = true
+            e.target.setSelectionRange(cursorPosition + 1, cursorPosition + 1)
+          }
+        }
+
+        //allows the cursor to move to the next space
+        setTimeout(() => {
+          const cursorPosition = e.target.selectionStart
+          const isSelection = cursorPosition !== e.target.selectionEnd
+          if (isSelection) {
+            return
+          }
+          const textValue = e.target.value
+          if (cursorPosition === 0 && textValue.length > 0) {
+            e.target.setSelectionRange(1, 1)
+            return
+          }
+          const prevPosition = cursorPosition - 1
+          const prevChar = textValue.at(prevPosition)
+          if (prevChar !== " ") {
+            return
+          }
+          if (key === "ArrowRight" || isNumberKey) {
+            e.target.setSelectionRange(cursorPosition + 1, cursorPosition + 1)
+          } else {
+            e.target.setSelectionRange(cursorPosition - 1, cursorPosition - 1)
+          }
+        }, 0)
+      }
+    </script>
+  </body>
+</html>
